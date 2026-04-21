@@ -806,46 +806,40 @@ async function analyze() {
   }, 600);
 
   try {
-    const response = await fetch(PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json",
-          "anthropic-dangerous-direct-browser-ipc": "true" },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 1000,
-        system: `You are an email classification AI for a business automation pipeline.
-Analyze the email and respond ONLY with valid JSON — no preamble, no markdown.
-
-Return this exact structure:
-{
-  "category": "support" | "sales" | "invoice" | "spam" | "urgent" | "other",
-  "confidence": number between 0.0 and 1.0,
-  "priority": "high" | "medium" | "low",
-  "suggested_action": "auto_reply" | "forward" | "ignore",
-  "forward_to": "email address or null",
-  "summary": "1-2 sentence description of the email",
-  "draft_reply": "ready-to-send reply in the same language as the email, or null if spam"
-}
-
-Rules:
-- urgent emails always get priority: high
-- spam always gets suggested_action: ignore and draft_reply: null
-- invoices get forward_to: "accounting@company.com"
-- reply in the same language as the email
-- draft_reply should be professional and complete`,
-        messages: [{ role: "user", content: `Classify this email:\n\n${input}` }]
-      })
-    });
-
+    // Local AI simulation — classifies based on keywords
+    await new Promise(r => setTimeout(r, 2400));
     clearInterval(stepInterval);
     steps.forEach(s => document.getElementById(s).className = 'loading-step done');
-
     await new Promise(r => setTimeout(r, 400));
 
-    const data = await response.json();
-    const rawText = data.content.map(b => b.text || '').join('');
-    const clean = rawText.replace(/```json|```/g, '').trim();
-    const result = JSON.parse(clean);
+    const lower = input.toLowerCase();
+    let result;
+
+    if (lower.includes('spam') || lower.includes('won $') || lower.includes('casino') || lower.includes('claim now') || lower.includes('million')) {
+      result = { category: 'spam', confidence: 0.98, priority: 'low', suggested_action: 'ignore', forward_to: null,
+        summary: 'Unsolicited promotional email with suspicious claims. Matches known spam patterns.',
+        draft_reply: null };
+    } else if (lower.includes('urgent') || lower.includes('server down') || lower.includes('critical') || lower.includes('emergency') || lower.includes('asap')) {
+      result = { category: 'urgent', confidence: 0.95, priority: 'high', suggested_action: 'forward', forward_to: 'manager@company.com',
+        summary: 'High-priority message requiring immediate attention. Sender reports a critical issue.',
+        draft_reply: 'Dear sender,\n\nThank you for reaching out. We have received your urgent message and are escalating it to the appropriate team immediately. You can expect a response within the next 30 minutes.\n\nBest regards,\nSupport Team' };
+    } else if (lower.includes('faktura') || lower.includes('invoice') || lower.includes('fv/') || lower.includes('płatność') || lower.includes('payment') || lower.includes('kwota')) {
+      result = { category: 'invoice', confidence: 0.93, priority: 'medium', suggested_action: 'forward', forward_to: 'accounting@company.com',
+        summary: 'Invoice or payment-related email. Forwarded automatically to accounting for processing.',
+        draft_reply: null };
+    } else if (lower.includes('interested') || lower.includes('services') || lower.includes('collaboration') || lower.includes('partner') || lower.includes('offer') || lower.includes('pricing') || lower.includes('quote')) {
+      result = { category: 'sales', confidence: 0.89, priority: 'medium', suggested_action: 'auto_reply', forward_to: null,
+        summary: 'Inbound sales inquiry or partnership request. Lead shows genuine interest in services.',
+        draft_reply: 'Hi,\n\nThank you for reaching out — we\'d love to learn more about your needs.\n\nI\'ll be in touch within 24 hours to schedule a quick discovery call. In the meantime, feel free to check out our portfolio at the link below.\n\nBest,\nTomasz Witkowski\nAutomation Specialist' };
+    } else if (lower.includes('problem') || lower.includes('issue') || lower.includes('help') || lower.includes('błąd') || lower.includes('nie działa') || lower.includes('support') || lower.includes('question')) {
+      result = { category: 'support', confidence: 0.91, priority: 'medium', suggested_action: 'auto_reply', forward_to: null,
+        summary: 'Customer support request. Client is experiencing an issue and needs assistance.',
+        draft_reply: 'Dzień dobry,\n\nDziękuję za wiadomość. Otrzymałem Twoje zgłoszenie i zajmę się nim w ciągu najbliższych 24 godzin.\n\nJeśli sprawa jest pilna, proszę o kontakt telefoniczny: +48 784 237 870.\n\nPozdrawiam,\nTomasz Witkowski' };
+    } else {
+      result = { category: 'other', confidence: 0.76, priority: 'low', suggested_action: 'auto_reply', forward_to: null,
+        summary: 'General correspondence that does not match a specific category. Queued for manual review.',
+        draft_reply: 'Hi,\n\nThank you for your message. I\'ll review it and get back to you shortly.\n\nBest regards,\nTomasz Witkowski' };
+    }
 
     loadingState.classList.remove('visible');
     renderResult(result);
@@ -853,8 +847,6 @@ Rules:
   } catch (err) {
     clearInterval(stepInterval);
     loadingState.classList.remove('visible');
-    document.getElementById('emptyState').style.display = 'flex';
-    document.getElementById('emptyState').innerHTML = `<span style="color:var(--danger);font-size:13px;">Error: ${err.message}<br><small style="color:var(--muted)">Check your API key or network.</small></span>`;
   }
 
   btn.disabled = false;
