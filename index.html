@@ -808,7 +808,8 @@ async function analyze() {
   try {
     const response = await fetch(PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json",
+          "anthropic-dangerous-direct-browser-ipc": "true" },
       body: JSON.stringify({
         model: "claude-opus-4-5",
         max_tokens: 1000,
